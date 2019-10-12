@@ -1,25 +1,23 @@
 {
   "name": "huex",
-  "version": "1.0.0",
-  "description": "Personalized home lighting with HUE bulb",
-  "main": "index.js",
+  "version": "0.0.0",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:dev": "NODE_ENV=development node ./bin/www",
+    "start": "NODE_ENV=production node ./bin/www"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/duydnguyen07/huex.git"
+  "dependencies": {
+    "@akanass/rx-http-request": "^3.3.0",
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "express": "~4.16.1",
+    "hbs": "~4.0.4",
+    "http-errors": "~1.6.3",
+    "morgan": "~1.9.1",
+    "node-sass-middleware": "0.11.0",
+    "rxjs": "^6.5.3"
   },
-  "keywords": [
-    "hue",
-    "personalized",
-    "home",
-    "lighting"
-  ],
-  "author": "Duy D Nguyen",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/duydnguyen07/huex/issues"
-  },
-  "homepage": "https://github.com/duydnguyen07/huex#readme"
+  "devDependencies": {
+    "dotenv": "^8.1.0"
+  }
 }
