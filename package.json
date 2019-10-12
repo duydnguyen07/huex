@@ -1,0 +1,25 @@
+{
+  "name": "huex",
+  "version": "1.0.0",
+  "description": "Personalized home lighting with HUE bulb",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duydnguyen07/huex.git"
+  },
+  "keywords": [
+    "hue",
+    "personalized",
+    "home",
+    "lighting"
+  ],
+  "author": "Duy D Nguyen",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/duydnguyen07/huex/issues"
+  },
+  "homepage": "https://github.com/duydnguyen07/huex#readme"
+}
