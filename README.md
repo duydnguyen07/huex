@@ -18,4 +18,7 @@ docker run -d -e HUE_KEY=<YOUR_KEY> \
             dnguyenclincase/huex
 ```
 
-Postgres needs to be created separately
+Postgres needs to be created separately.
+
+## References
+[Hue API](https://developers.meethue.com/develop/get-started-2/)

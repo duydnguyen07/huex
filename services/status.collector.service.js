@@ -22,11 +22,14 @@ class StatusCollectorService {
             if(data && data.response && data.response.statusCode === 200){
                 let rawStatus = JSON.parse(data.body);
                 forEach(rawStatus, (status, key) => {
+                    let localDate = new Date();
+
                     let res = {
                         state: status.state,
                         uniqueid: status.uniqueid,
                         name: status.name,
-                        timeStamp: new Date().toISOString()
+                        localTimestamp: localDate.toString(),
+                        timeStamp: localDate.toISOString()
                     }
                     writeToDb(res)
                 })
