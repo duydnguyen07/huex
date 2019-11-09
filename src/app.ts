@@ -4,15 +4,22 @@ import createError from "http-errors";
 import logger from "morgan";
 import path from "path";
 
+import createConnection, { ConnectionPool, sql } from "@databases/pg";
 import identityRouter from "./routes/identity";
 import indexRouter from "./routes/index";
 import { config } from "./services/config";
-import { getOnlineMACAddresses } from "./services/mac.discovery.service";
+import { OnOffService } from "./services/on.off.service";
 import { StatusCollectorService } from "./services/status.collector.service";
 
-getOnlineMACAddresses();
+const dbConnection = createConnection(process.env.POSTGRES_URI);
 
-const service = new StatusCollectorService(Number.parseInt(config.DATA_COLLECTION_INTERVAL, 10) || 900000);
+const onOffService = new OnOffService(dbConnection);
+onOffService.start();
+
+const service = new StatusCollectorService(
+  Number.parseInt(config.DATA_COLLECTION_INTERVAL, 10) || 900000,
+  dbConnection
+);
 service.startCollectingData();
 
 const app = express();

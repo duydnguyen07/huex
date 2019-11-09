@@ -12,7 +12,6 @@ export function getHubIP(ipSubject?: BehaviorSubject<any>) {
     const newIP = new Subject();
     const cachedIp = (ipSubject) ? ipSubject.getValue() : "";
 
-    // test IP
     if (cachedIp) {
         getIpCheckReq(cachedIp).subscribe((res: any) => {
             if (res === false) { // ip is not working anymore

@@ -1,16 +1,17 @@
-import createConnection, { sql } from "@databases/pg";
+import { ConnectionPool, sql } from "@databases/pg";
 import { forEach } from "lodash";
 import { timer } from "rxjs";
 import { startWith, withLatestFrom } from "rxjs/operators";
 import { HueApiService } from "./hue.api.service";
 
-const db = createConnection(process.env.POSTGRES_URI);
-
 export class StatusCollectorService {
     private intervalTime: number;
     private hueApiService: HueApiService;
 
-    constructor(intervalTime: number) {
+    constructor(
+        intervalTime: number,
+        private db: ConnectionPool
+    ) {
         this.intervalTime = intervalTime || 3600000; // default to 1 hour
         this.hueApiService = new HueApiService();
     }
@@ -31,20 +32,19 @@ export class StatusCollectorService {
                         name: status.name,
                         state: status.state,
                         uniqueid: status.uniqueid,
-                        timeStamp: localDate.toISOString()
+                        timeStamp: localDate.toISOString(),
+                        lightIndex: key
                     };
-                    writeToDb(res);
+                    this.writeToDb(res);
                 });
             }
         });
     }
-}
 
-function writeToDb(data: string) {
-    db.query(sql`INSERT INTO huex.light_status_log(status) VALUES (${data});`).then(
-        (results: any) => console.log(results),
-        (err: any) => console.error(err),
-      );
+    private writeToDb(data: string) {
+        this.db.query(sql`INSERT INTO huex.light_status_log(status) VALUES (${data});`).then(
+            (results: any) => console.log(results),
+            (err: any) => console.error(err),
+          );
+    }
 }
-
-module.exports.StatusCollectorService = StatusCollectorService;
