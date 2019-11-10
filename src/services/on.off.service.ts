@@ -5,14 +5,17 @@
 import { RxHttpRequestResponse } from "@akanass/rx-http-request";
 import { ConnectionPool, sql } from "@databases/pg";
 import { getTable, IArpTable, IArpTableRow } from "@network-utils/arp-lookup";
-import { find, findIndex } from "lodash";
+import { find } from "lodash";
 import { BehaviorSubject, from, interval, Observable, of } from "rxjs";
-import { combineLatest, debounceTime, switchMap, withLatestFrom } from "rxjs/operators";
+import { catchError, combineLatest, debounceTime, first, mapTo, switchMap, withLatestFrom } from "rxjs/operators";
 import { IDevice, IUser } from "../models/user.info.model";
 import { HueApiService } from "./hue.api.service";
 
 // tslint:disable-next-line
 const ping = require("net-ping");
+
+// tslint:disable-next-line
+require('log-timestamp');
 
 interface IReachableIpChangeEvent {
     data: Set<string>;
@@ -25,10 +28,16 @@ interface IUserHueProfile {
     hueStatus: any;
 }
 
+interface ILightStateUpdate {
+    lightIndex: number;
+    state: "on"|"off";
+}
+
 export class OnOffService {
     private hueApiService: HueApiService;
     private localIps: string[];
     private pingSession: any;
+    private MONITORING_INTERVAL = 2000;
 
     constructor(private db: ConnectionPool) {
         this.hueApiService = new HueApiService();
@@ -44,16 +53,22 @@ export class OnOffService {
      */
     public start() {
         // Start to ping to monitor device presence in network
-        this.reachableIps(this.pingSession, 2000).pipe(
+        this.reachableIps(this.pingSession, this.MONITORING_INTERVAL).pipe(
             debounceTime(200),
-            combineLatest(
-                from(getTable()),
-                this.getUserHueProfiles()
+            withLatestFrom(
+                this.getArpTableInterval(this.MONITORING_INTERVAL),
+                this.getUserHueProfiles(this.MONITORING_INTERVAL)
             ),
+            catchError((err: any) => {
+                console.log(err);
+                return of(err);
+            }),
             switchMap((
                 [reachableIpChangeE, arpTable, profiles]:
                 [IReachableIpChangeEvent, IArpTable, IUserHueProfile[]]
             ) => {
+                const stateUpdate: ILightStateUpdate[] = [];
+
                 // Get a set of mac addresses that are associated with the reachable IPs
                 const reachableIpMacSet: Set<string> = new Set();
                 reachableIpChangeE.data.forEach((reachableIp) => {
@@ -63,31 +78,55 @@ export class OnOffService {
 
                 // Check to see if devices registered with this profile are present
                 profiles.forEach((profile: IUserHueProfile) => {
-                    let onlineDevice: IDevice = find(
-                        // A mac address in this profile is found to be active in the LAN
+                    const onlineDevice: IDevice = find(
+                        // A MAC address in this profile is found to be active in the LAN
                         profile.user.devices.value, (device: IDevice) => reachableIpMacSet.has(device.MAC_ID)
                     );
 
                     if (onlineDevice &&
-                        // Light status is off
-                        profile.hueStatus.state.on === false
+                        profile.hueStatus.state.on === false  // Light status is off
                     ) {
-                        console.log(`${profile.user.name} needs to be turned on`);
-                    } else if(
-                        !onlineDevice && 
-                        profile.hueStatus.state.on === true
+                        console.log(
+                            `Light of user ${profile.user.name} is turning ON because device ${JSON.stringify(onlineDevice)} is online`
+                        );
+
+                        stateUpdate.push({
+                            lightIndex: profile.user.lightIndex,
+                            state: "on"
+                        });
+                    } else if (
+                        !onlineDevice &&
+                        profile.hueStatus.state.on === true // Light status is on
                     ) {
-                        console.log(`${profile.user.name} needs to be turned off`);
+                        console.log(`Light of user ${profile.user.name} is turning OFF because no devices are online`);
+
+                        stateUpdate.push({
+                            lightIndex: profile.user.lightIndex,
+                            state: "off"
+                        });
                     }
                 });
 
-                //TODO: ADD log to each step to see that the cronjob is started
-                //TODO: Turn light on or off depending on status
-                //TODO: When an action is generated, create a log with timestamp.
-                console.log(reachableIpMacSet, JSON.stringify(profiles) );
-
-                return of([]);
-            })).subscribe();
+                return of(stateUpdate);
+            })).subscribe((lightUpdates: ILightStateUpdate[]) => {
+                if (lightUpdates && lightUpdates.length) {
+                    lightUpdates.forEach((update: ILightStateUpdate) => {
+                        this.hueApiService.updateLight(update.lightIndex, {
+                            on: (update.state === "on") ? true : false
+                        }).pipe(
+                            first(),
+                            catchError((err: any) => {
+                                console.error(err);
+                                return of(err);
+                            })
+                        ).subscribe(() => {
+                            console.log(
+                                `Successfully updated light index ${update.lightIndex} to status ${update.state}`
+                            );
+                        });
+                    });
+                }
+            });
     }
 
     // Get a stream of all online ips
@@ -99,6 +138,7 @@ export class OnOffService {
             addedIp: ""
         });
 
+        console.log(`Monitoring ips in local network at ${refreshInterval} interval.`);
         setInterval(() => {
             this.localIps.forEach((ip) => {
                 const newResponse = {
@@ -134,23 +174,26 @@ export class OnOffService {
         return subject.asObservable();
     }
 
-    private getUserHueProfiles(): Observable<IUserHueProfile[]> {
-        // IMPROVEMENT:  cache for 1 min before calling db again
+    private getUserHueProfiles(int: number): Observable<IUserHueProfile[]> {
+        // IMPROVEMENT: cache for 1 min before calling db again
 
-        return from(this.db.query(sql`SELECT * FROM huex.profiles;`)).pipe(
-            withLatestFrom(this.hueApiService.getAllLightsInfo()),
-            switchMap(([users, lightStatuses]: [IUser[], RxHttpRequestResponse]) => {
-                const res = [];
+        return interval(int).pipe(
+            switchMap(() => from(this.db.query(sql`SELECT * FROM huex.profiles;`)).pipe(
+                    withLatestFrom(this.hueApiService.getAllLightsInfo()),
+                    switchMap(([users, lightStatuses]: [IUser[], RxHttpRequestResponse]) => {
+                        const res = [];
 
-                for (const user of users) {
-                    res.push({
-                        user,
-                        hueStatus: JSON.parse(lightStatuses.body)[user.lightIndex]
-                    });
-                }
+                        for (const user of users) {
+                            res.push({
+                                user,
+                                hueStatus: JSON.parse(lightStatuses.body)[user.lightIndex]
+                            });
+                        }
 
-                return of(res);
-            })
+                        return of(res);
+                    })
+                )
+            )
         );
     }
 
@@ -162,5 +205,9 @@ export class OnOffService {
         }
 
         return res;
+    }
+
+    private getArpTableInterval(int: number): Observable<IArpTable> {
+        return interval(int).pipe(switchMap(() => from(getTable())));
     }
 }

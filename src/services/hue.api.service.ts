@@ -28,7 +28,7 @@ export class HueApiService {
         );
     }
 
-    public updateLight(lightNumber: string, payload: any) {
+    public updateLight(lightNumber: string | number, payload: any) {
         return getApiBase(this.hubIpObs).pipe(
             switchMap((baseUrl: any) => RxHR.put(`${baseUrl}/lights/${lightNumber}/state`,
                     {

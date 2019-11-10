@@ -24,6 +24,7 @@
     "hbs": "~4.0.4",
     "http-errors": "~1.6.3",
     "lodash": "^4.17.15",
+    "log-timestamp": "^0.3.0",
     "morgan": "~1.9.1",
     "net-ping": "^1.2.3",
     "rxjs": "^6.5.3"
