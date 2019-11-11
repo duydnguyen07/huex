@@ -26,7 +26,7 @@
     "lodash": "^4.17.15",
     "log-timestamp": "^0.3.0",
     "morgan": "~1.9.1",
-    "net-ping": "^1.2.3",
+    "ping": "^0.2.2",
     "rxjs": "^6.5.3"
   },
   "devDependencies": {
