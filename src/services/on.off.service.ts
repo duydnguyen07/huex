@@ -7,7 +7,7 @@ import { ConnectionPool, sql } from "@databases/pg";
 import { getTable, IArpTable, IArpTableRow } from "@network-utils/arp-lookup";
 import { find } from "lodash";
 import { BehaviorSubject, from, interval, Observable, of } from "rxjs";
-import { catchError, combineLatest, debounceTime, first, mapTo, switchMap, withLatestFrom } from "rxjs/operators";
+import { catchError, debounceTime, first, switchMap, withLatestFrom } from "rxjs/operators";
 import { IDevice, IUser } from "../models/user.info.model";
 import { HueApiService } from "./hue.api.service";
 
@@ -81,7 +81,7 @@ export class OnOffService {
                         profile.user.devices.value, (device: IDevice) => reachableIpMacSet.has(device.MAC_ID)
                     );
 
-                    console.log(reachableIpChangeE, arpTable, profiles)
+                    console.log(reachableIpChangeE, arpTable, profiles);
 
                     if (onlineDevice &&
                         profile.hueStatus.state.on === false  // Light status is off
