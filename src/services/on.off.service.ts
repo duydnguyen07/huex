@@ -7,12 +7,12 @@ import { ConnectionPool, sql } from "@databases/pg";
 import { getTable, IArpTable, IArpTableRow } from "@network-utils/arp-lookup";
 import { find } from "lodash";
 import { BehaviorSubject, from, interval, Observable, of } from "rxjs";
-import { catchError, combineLatest, debounceTime, first, mapTo, switchMap, withLatestFrom } from "rxjs/operators";
+import { catchError, debounceTime, first, switchMap, withLatestFrom } from "rxjs/operators";
 import { IDevice, IUser } from "../models/user.info.model";
 import { HueApiService } from "./hue.api.service";
 
 // tslint:disable-next-line
-const ping = require("net-ping");
+const ping = require("ping");
 
 // tslint:disable-next-line
 require('log-timestamp');
@@ -36,12 +36,10 @@ interface ILightStateUpdate {
 export class OnOffService {
     private hueApiService: HueApiService;
     private localIps: string[];
-    private pingSession: any;
     private MONITORING_INTERVAL = 2000;
 
     constructor(private db: ConnectionPool) {
         this.hueApiService = new HueApiService();
-        this.pingSession = ping.createSession();
         this.localIps = this.getLocalIps();
 
         // TODO: figureout how to allow user to manage profile and devices
@@ -53,7 +51,7 @@ export class OnOffService {
      */
     public start() {
         // Start to ping to monitor device presence in network
-        this.reachableIps(this.pingSession, this.MONITORING_INTERVAL).pipe(
+        this.reachableIps(this.MONITORING_INTERVAL).pipe(
             debounceTime(200),
             withLatestFrom(
                 this.getArpTableInterval(this.MONITORING_INTERVAL),
@@ -82,6 +80,8 @@ export class OnOffService {
                         // A MAC address in this profile is found to be active in the LAN
                         profile.user.devices.value, (device: IDevice) => reachableIpMacSet.has(device.MAC_ID)
                     );
+
+                    console.log(reachableIpChangeE, arpTable, profiles);
 
                     if (onlineDevice &&
                         profile.hueStatus.state.on === false  // Light status is off
@@ -130,7 +130,7 @@ export class OnOffService {
     }
 
     // Get a stream of all online ips
-    private reachableIps(session: any, refreshInterval: number): Observable<IReachableIpChangeEvent> {
+    private reachableIps(refreshInterval: number): Observable<IReachableIpChangeEvent> {
         const currentReachableIps: Set<string> = new Set([]);
         const subject = new BehaviorSubject({
             data: currentReachableIps,
@@ -148,18 +148,18 @@ export class OnOffService {
                 };
 
                 // Ping Ip address if there are changes
-                session.pingHost(ip, (error: any, target: any) => {
+                ping.sys.probe(ip, (isAlive: boolean) => {
                     let isUpdated = false;
-                    if (error) { // remove id from reachableIp list
-                        if (currentReachableIps.has(target)) {
-                            newResponse.deletedIp = target;
-                            currentReachableIps.delete(target);
+                    if (!isAlive) { // remove id from reachableIp list
+                        if (currentReachableIps.has(ip)) {
+                            newResponse.deletedIp = ip;
+                            currentReachableIps.delete(ip);
                             isUpdated = true;
                         }
                     } else {
-                        if (!currentReachableIps.has(target)) {
-                            currentReachableIps.add(target);
-                            newResponse.addedIp = target;
+                        if (!currentReachableIps.has(ip)) {
+                            currentReachableIps.add(ip);
+                            newResponse.addedIp = ip;
                             isUpdated = true;
                         }
                     }
